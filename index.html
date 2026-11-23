@@ -92,7 +92,21 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
 }
 function loginCard(){
   var u=S.upd?'<div class="alert">🔄 يتوفر إصدار جديد من التطبيق. <a href="'+esc(S.upd.url||"#")+'">تحديث الآن</a></div>':"";
-  return u+(S.login?'<div class="card"><div class="t" style="margin-bottom:8px">دخول الأساتذة</div><form class="add" data-f="login"><input class="full" type="email" name="email" placeholder="البريد الإلكتروني" required><input class="full" type="password" name="pass" placeholder="كلمة المرور" required><button class="go full">دخول</button></form></div>':"");
+  return u+(S.login?'<div class="card"><div class="t" style="margin-bottom:8px">دخول الأساتذة</div><form class="add" data-f="login"><input class="full" type="email" name="email" placeholder="البريد الإلكتروني" required><input class="full" type="password" name="pass" placeholder="كلمة المرور" required><button class="go full">دخول</button><button type="button" class="go full" style="background:var(--mu)" data-forgot="1">نسيت كلمة المرور؟</button></form></div>':"");
+}
+function authMsg(e){
+  var c=(e&&e.code)||"";
+  if(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c))return"البريد أو كلمة المرور غير صحيحة. جرّب لوحة مفاتيح إنجليزية أو اضغط نسيت كلمة المرور.";
+  if(/operation-not-allowed/.test(c))return"تسجيل الدخول بالبريد غير مفعّل في Firebase (Authentication ← Sign-in method).";
+  if(/too-many-requests/.test(c))return"محاولات كثيرة. انتظر قليلاً ثم أعد المحاولة.";
+  if(/network/.test(c))return"لا يوجد اتصال بالإنترنت.";
+  return"تعذّر الدخول: "+c;
+}
+function forgot(){
+  var el=document.querySelector('form[data-f="login"] input[name="email"]');
+  var em=el?el.value.trim():"";
+  if(!em){alert("اكتب بريدك الإلكتروني في الخانة أولاً ثم اضغط نسيت كلمة المرور.");return}
+  auth.sendPasswordResetEmail(em).then(function(){alert("أُرسل رابط إعادة تعيين كلمة المرور إلى "+em+". افحص صندوق Spam أيضاً.")}).catch(function(e){alert(authMsg(e))});
 }
 $("lg").onclick=function(){
   if(!auth)return;
@@ -205,6 +219,7 @@ $("view").onclick=function(e){var d=e.target.dataset||{};
   else if(d.e){S.edit={col:d.e,id:d.id};render();window.scrollTo(0,0)}
   else if(d.cancel){S.edit=null;render()}
   else if(d.seed){seedAll()}
+  else if(d.forgot){forgot()}
   else if(d.reg){S.regOpen=true;S.reg={dept:ME.dept||"",stage:ME.stage||"",grp:ME.grp||""};render()}
   else if(d.regc){S.regOpen=false;S.reg=null;render()}
 };
@@ -213,7 +228,7 @@ $("view").onsubmit=function(e){
   e.preventDefault();var f=e.target,col=f.dataset.f,o={};
   Array.prototype.forEach.call(f.elements,function(x){if(x.name)o[x.name]=x.value.trim()});
   if(col==="reg"){saveMe(o);S.reg=null;S.regOpen=false;render();return}
-  if(col==="login"){auth.signInWithEmailAndPassword(o.email,o.pass).catch(function(){alert("بيانات الدخول غير صحيحة")});return}
+  if(col==="login"){auth.signInWithEmailAndPassword(o.email,o.pass).catch(function(e){alert(authMsg(e))});return}
   if(S.edit&&S.edit.col===col){save(col,S.edit.id,o);return}
   if(col==="notes")o.ts=Date.now();
   add(col,o);
