@@ -138,6 +138,7 @@ function toast(m){var t=document.getElementById("toast");if(!t){t=document.creat
 function twoTap(k,fn){if(S.pend===k){S.pend=null;clearTimeout(PT);fn();render();return}S.pend=k;render();clearTimeout(PT);PT=setTimeout(function(){S.pend=null;render()},4000)}
 function delBtn(c,id){return S.pend===c+id?'<button class="x cf" data-d="'+c+'" data-id="'+id+'">تأكيد الحذف؟</button>':'<button class="x" data-d="'+c+'" data-id="'+id+'" aria-label="حذف">🗑</button>'}
 function repName(){return"ممثل كروب "+((REPINFO&&REPINFO.grp)||ME.grp||"")}
+function repLabel(){return repName()+(REPINFO&&REPINFO.name?" · "+REPINFO.name:"")}
 function setRole(r){S.ready=true;REAL=r;S.view=r;S.role=(r==="student"||r==="rep")?"student":"prof";if(S.role==="student")S.edit=null;render()}
 function fail(){toast("تعذّر الحفظ: ليست لديك صلاحية أو لا يوجد اتصال.")}
 function add(col,o){if(db)db.collection(col).add(o).catch(fail)}
@@ -162,7 +163,7 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
     db.collection("admins").doc(u.uid).get().then(function(d){
       var x=d.exists?d.data():null,r=x?(x.role==="dev"?"dev":x.role==="rep"?"rep":"prof"):"student";
       S.login=false;MYNAME=x&&x.name?String(x.name):"";
-      if(r==="rep"){REPINFO={stage:x.stage||"",grp:x.grp||"",dept:x.dept||""};MYNAME=repName();saveMe({fac:facOf(REPINFO.dept),dept:REPINFO.dept,stage:REPINFO.stage,grp:REPINFO.grp})}
+      if(r==="rep"){REPINFO={stage:x.stage||"",grp:x.grp||"",dept:x.dept||"",name:x.name||""};MYNAME=REPINFO.name||repName();saveMe({fac:facOf(REPINFO.dept),dept:REPINFO.dept,stage:REPINFO.stage,grp:REPINFO.grp})}
       if(r==="dev"){
         UNSUBS.push(db.collection("repRequests").onSnapshot(function(q){S.reqs=q.docs.map(function(z){var o=z.data();o.id=z.id;return o});render()},function(){}));
         UNSUBS.push(db.collection("admins").onSnapshot(function(q){S.reps=q.docs.map(function(z){var o=z.data();o.id=z.id;return o}).filter(function(o){return o.role==="rep"});render()},function(){}));
@@ -265,7 +266,7 @@ function inp(f,v){
 }
 function formHtml(col){
   var ed=S.edit&&S.edit.col===col?S[col].filter(function(x){return x.id===S.edit.id})[0]:null,v=ed||(col==="courses"&&S.selDay!=null?{day:String(S.selDay)}:{});
-  return'<div class="card"><div class="t" style="margin-bottom:8px">'+(ed?"تعديل ":"إضافة ")+TT[col]+'</div><form class="add" data-f="'+col+'">'+F[col].map(function(f){return inp(f,v)}).join("")+''+(S.view==="rep"?'<select name="target" class="full"><option value="grp">إرسال إلى كروبي فقط ('+esc(REPINFO.grp||ME.grp||"")+')</option><option value="stage">إرسال إلى كل المرحلة ('+esc(REPINFO.stage||ME.stage||"")+')</option></select><div class="m full" style="padding:2px 4px">يظهر التبليغ باسم «'+esc(repName())+'».</div>':'<select name="dept"><option value="">كل الأقسام</option>'+deptGroups(v.dept)+'</select><select name="stage"><option value="">كل المراحل</option>'+opts(STAGES,v.stage)+'</select>')+'<button class="go'+(ed?"":" full")+'">'+(ed?"حفظ التعديل":"إضافة")+'</button>'+(ed?'<button type="button" class="go" style="background:var(--mu)" data-cancel="1">إلغاء</button>':"")+'</form></div>';
+  return'<div class="card"><div class="t" style="margin-bottom:8px">'+(ed?"تعديل ":"إضافة ")+TT[col]+'</div><form class="add" data-f="'+col+'">'+F[col].map(function(f){return inp(f,v)}).join("")+''+(S.view==="rep"?'<select name="target" class="full"><option value="grp">إرسال إلى كروبي فقط ('+esc(REPINFO.grp||ME.grp||"")+')</option><option value="stage">إرسال إلى كل المرحلة ('+esc(REPINFO.stage||ME.stage||"")+')</option></select><div class="m full" style="padding:2px 4px">يظهر التبليغ باسم «'+esc(repLabel())+'».</div>':'<select name="dept"><option value="">كل الأقسام</option>'+deptGroups(v.dept)+'</select><select name="stage"><option value="">كل المراحل</option>'+opts(STAGES,v.stage)+'</select>')+'<button class="go'+(ed?"":" full")+'">'+(ed?"حفظ التعديل":"إضافة")+'</button>'+(ed?'<button type="button" class="go" style="background:var(--mu)" data-cancel="1">إلغاء</button>':"")+'</form></div>';
 }
 var PAL=["#2f5bea","#e11d73","#0f9d6b","#f59e0b","#7c3aed","#0e8aa8","#ea580c","#c026d3"],DCOL={6:"#2f5bea",0:"#0e8aa8",1:"#7c3aed",2:"#e11d73",3:"#f59e0b",4:"#0f9d6b",5:"#64748b"};
 function ccol(n){var h=0;n=String(n||"");for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return PAL[h%PAL.length]}
@@ -448,7 +449,7 @@ $("view").onsubmit=function(e){
   if(col==="rep"){var cu=auth&&auth.currentUser;if(!cu)return;if(!o.name||!o.dept||!o.stage||!o.grp){toast("أكمل كل الحقول");return}
     db.collection("repRequests").doc(cu.uid).set({name:o.name,dept:o.dept,stage:o.stage,grp:o.grp,email:cu.email||"",status:"pending",ts:Date.now()}).then(function(){S.rr=null;toast("أُرسل طلبك إلى المطوّر")}).catch(fail);return}
   if(col==="notes"){o.ts=Date.now();if(MYUID)o.uid=MYUID}
-  if(col==="notes"&&S.view==="rep"){o.stage=REPINFO.stage||ME.stage||"";o.grp=o.target==="stage"?"":(REPINFO.grp||ME.grp||"");delete o.target;o.dept=REPINFO.dept||ME.dept||"";o.from=repName()}
+  if(col==="notes"&&S.view==="rep"){o.stage=REPINFO.stage||ME.stage||"";o.grp=o.target==="stage"?"":(REPINFO.grp||ME.grp||"");delete o.target;o.dept=REPINFO.dept||ME.dept||"";o.from=repLabel()}
   else if((col==="notes"||col==="exams")&&MYNAME)o[col==="notes"?"from":"by"]=MYNAME;
   if(col==="courses")S.addOpen=false;
   add(col,o);
