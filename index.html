@@ -387,7 +387,7 @@ $("view").onsubmit=function(e){
   Array.prototype.forEach.call(f.elements,function(x){if(x.name)o[x.name]=x.value.trim()});
   if(col==="reg"){saveMe(o);S.reg=null;S.regOpen=false;render();return}
   if(col==="login"){auth.signInWithEmailAndPassword(o.email,o.pass).catch(function(e){alert(authMsg(e))});return}
-  if(S.edit&&S.edit.col===col){save(col,S.edit.id,o);return}
+  if(S.edit&&S.edit.col===col){var k=col==="notes"?"from":"by",old=S[col].filter(function(x){return x.id===S.edit.id})[0]||{};if(MYNAME&&!old[k])o[k]=MYNAME;save(col,S.edit.id,o);return}
   if(col==="notes")o.ts=Date.now();
   if((col==="notes"||col==="exams")&&MYNAME)o[col==="notes"?"from":"by"]=MYNAME;
   if(col==="courses")S.addOpen=false;
