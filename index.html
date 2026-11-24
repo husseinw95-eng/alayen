@@ -7,6 +7,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="جامعة العين">
 <title>جامعة العين العراقية</title>
 <style>
@@ -314,6 +315,13 @@ function hdr(){
   $("bell").innerHTML=IC.bell+(S.role==="student"&&u?"<b>"+u+"</b>":"");
   $("lg").innerHTML=IC.user;
 }
+function installCard(){
+  var ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  var standalone=navigator.standalone||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches);
+  var hid=false;try{hid=localStorage.getItem("hideInstall")==="1"}catch(e){}
+  if(S.role!=="student"||!ios||standalone||hid)return"";
+  return'<div class="alert" style="background:var(--pr2);color:var(--pr)"><b>📲 ثبّت التطبيق على الآيفون</b><br>من Safari اضغط زر المشاركة <b>⬆︎</b> ثم «إضافة إلى الشاشة الرئيسية» (Add to Home Screen).<br><button class="x" data-hideinst="1" style="font-size:14px;margin-top:6px">إخفاء</button></div>';
+}
 function notifCard(){
   if(S.role!=="student"||!("Notification" in window)||Notification.permission!=="default")return"";
   return'<div class="card row" style="align-items:center"><div><div class="t">🔔 الإشعارات</div><div class="m">فعّلها لتصلك التبليغات والامتحانات الجديدة</div></div><button class="go" data-notif="1" style="width:auto;padding:8px 16px;margin:0">تفعيل</button></div>';
@@ -350,7 +358,7 @@ function render(){
   if(S.role==="student"&&(!ME.stage||S.regOpen)){$("view").innerHTML=loginCard()+previewBar()+regView();return}
   var edAlert=S.role==="prof"?'<div class="alert" style="background:var(--pr2);color:var(--pr)">وضع التحرير: '+(S.view==="dev"?"يمكنك تعديل الجدول والامتحانات والتبليغات":"يمكنك إضافة الامتحانات والتبليغات وتعديلها وحذفها")+'</div>':"";
   var h=loginCard();
-  if(S.tab==="home")h+=previewBar()+edAlert+(S.role==="student"?meBar()+notifCard()+nearBanner():"")+homeTiles();
+  if(S.tab==="home")h+=previewBar()+edAlert+(S.role==="student"?meBar()+installCard()+notifCard()+nearBanner():"")+homeTiles();
   else h+=secHead(S.tab)+edAlert+(S.role==="student"?"":filterBar())+(S.tab==="sched"?schedView():S.tab==="today"?todayView():S.tab==="exams"?examsView():notesView());
   $("view").innerHTML=h;
 }
@@ -375,6 +383,7 @@ $("view").onclick=function(e){var gt=e.target.closest&&e.target.closest("[data-g
   else if(d.e){S.edit={col:d.e,id:d.id};render();window.scrollTo(0,0)}
   else if(d.cancel){S.edit=null;render()}
   else if(d.seed){seedAll()}
+  else if(d.hideinst){try{localStorage.setItem("hideInstall","1")}catch(x){}render()}
   else if(d.notif){try{Notification.requestPermission().then(function(){render()})}catch(x){}}
   else if(d.forgot){forgot()}
   else if(d.addc!==undefined){S.addOpen=d.addc==="1";render()}
