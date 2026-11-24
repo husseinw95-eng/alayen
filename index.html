@@ -323,7 +323,7 @@ function notesView(){
   if(!l.length)return h+'<div class="empty">'+(S.hist.notes?"لا يوجد سجل تبليغات سابقة.":"لا توجد تبليغات حديثة.")+'</div>';
   l.forEach(function(n){
     var isNew=S.role==="student"&&!n.deleted&&r.indexOf(n.id)<0,sv=st||(S.view==="rep"&&n.uid&&n.uid===MYUID);
-    h+='<div class="card'+(isNew?" new":"")+'"'+(n.deleted?' style="opacity:.62"':'')+'><div class="row"><div><div class="t">'+(isNew?"🔵 ":"")+(n.deleted?"🗑 ":"")+esc(n.title)+tg(n)+(n.deleted?'<span class="tg" style="background:#fee2e2;color:#b91c1c">محذوف</span>':'')+'</div><div class="m">'+esc(n.from||"")+(n.ts?" · "+new Date(n.ts).toLocaleDateString("ar",{day:"numeric",month:"short"}):"")+(sv?" · 👁 "+(n.views||0):"")+(n.deleted&&n.deletedBy?" · حذفه: "+esc(n.deletedBy):"")+'</div></div><div>'+(n.deleted?"":acts("notes",n.id))+'</div></div><div style="margin-top:6px;white-space:pre-wrap">'+esc(n.body)+'</div></div>';
+    h+='<div class="card'+(isNew?" new":"")+'"'+(n.deleted?' style="opacity:.62"':'')+'><div class="row"><div><div class="t">'+(isNew?"🔵 ":"")+(n.deleted?"🗑 ":"")+esc(n.title)+tg(n)+(n.deleted?'<span class="tg" style="background:#fee2e2;color:#b91c1c">محذوف</span>':'')+'</div><div class="m">'+esc(n.from||"")+(n.ts?" · "+new Date(n.ts).toLocaleDateString("ar",{day:"numeric",month:"short"}):"")+(sv?" · 👁 "+(n.views||0):"")+(n.deleted&&n.deletedBy?" · حذفه: "+esc(n.deletedBy):"")+'</div></div><div>'+(n.deleted?"":acts("notes",n.id))+(S.hist.notes&&REAL==="dev"&&S.view==="dev"?(S.pend==="pd"+n.id?'<button class="x cf" data-pd="'+n.id+'">تأكيد الحذف النهائي؟</button>':'<button class="x" data-pd="'+n.id+'" style="font-size:13px;color:#b91c1c">حذف نهائي</button>'):"")+'</div></div><div style="margin-top:6px;white-space:pre-wrap">'+esc(n.body)+'</div></div>';
   });
   return h;
 }
@@ -435,6 +435,7 @@ $("view").onclick=function(e){var gt=e.target.closest&&e.target.closest("[data-g
   var d=e.target.dataset||{};
   if(d.v){S.view=d.v;S.role=(d.v==="student"||d.v==="rep")?"student":"prof";S.edit=null;render()}
   else if(d.d)twoTap(d.d+d.id,function(){del(d.d,d.id)});
+  else if(d.pd){twoTap("pd"+d.pd,function(){if(db)db.collection("notes").doc(d.pd).delete().then(function(){toast("حُذف التبليغ نهائياً")}).catch(fail)})}
   else if(d.lo){twoTap("lo",function(){S.login=false;auth.signOut()})}
   else if(d.ap){var q=S.reqs.filter(function(r){return r.id===d.ap})[0];if(q&&db){var b=db.batch();b.set(db.collection("admins").doc(q.id),{role:"rep",name:q.name,dept:q.dept,stage:q.stage,grp:q.grp,email:q.email||""});b.delete(db.collection("repRequests").doc(q.id));b.commit().then(function(){toast("تمت الموافقة على الممثل")}).catch(fail)}}
   else if(d.rj){if(db)db.collection("repRequests").doc(d.rj).update({status:"rejected"}).then(function(){toast("تم رفض الطلب")}).catch(fail)}
