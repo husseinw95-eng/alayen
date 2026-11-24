@@ -165,9 +165,9 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
       var x=d.exists?d.data():null,r=x?(x.role==="dev"?"dev":x.role==="rep"?"rep":x.role==="head"?"head":"prof"):"student";
       S.login=false;MYNAME=x&&x.name?String(x.name):"";
       if(r==="rep"){REPINFO={stage:x.stage||"",grp:x.grp||"",dept:x.dept||"",name:x.name||""};MYNAME=REPINFO.name||repName();saveMe({fac:facOf(REPINFO.dept),dept:REPINFO.dept,stage:REPINFO.stage,grp:REPINFO.grp})}
-      if(r==="dev"){
+      if(r==="dev"||r==="head"){
         UNSUBS.push(db.collection("repRequests").onSnapshot(function(q){S.reqs=q.docs.map(function(z){var o=z.data();o.id=z.id;return o});render()},function(){}));
-        UNSUBS.push(db.collection("admins").onSnapshot(function(q){S.reps=q.docs.map(function(z){var o=z.data();o.id=z.id;return o}).filter(function(o){return o.role==="rep"});render()},function(){}));
+        if(r==="dev")UNSUBS.push(db.collection("admins").onSnapshot(function(q){S.reps=q.docs.map(function(z){var o=z.data();o.id=z.id;return o}).filter(function(o){return o.role==="rep"});render()},function(){}));
       }
       if(r==="student")UNSUBS.push(db.collection("repRequests").doc(u.uid).onSnapshot(function(z){S.myReq=z.exists?z.data():null;render()},function(){}));
       setRole(r);
@@ -176,7 +176,7 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
 }
 function repForm(){
   var q=S.myReq;
-  if(q&&q.status==="pending")return'<div class="alert" style="background:var(--pr2);color:var(--pr)">⏳ طلبك كممثل كروب ('+esc(q.grp)+' · المرحلة '+esc(q.stage)+') قيد المراجعة من المطوّر.</div>';
+  if(q&&q.status==="pending")return'<div class="alert" style="background:var(--pr2);color:var(--pr)">⏳ طلبك كممثل كروب ('+esc(q.grp)+' · المرحلة '+esc(q.stage)+') قيد المراجعة، ويحتاج موافقة المطوّر والعميد/رئيس القسم ('+(q.devOk?"✔":"⏳")+' المطوّر · '+(q.headOk?"✔":"⏳")+' العميد).</div>';
   var v=S.rr||{name:MYNAME||"",dept:ME.dept||"",stage:ME.stage||"",grp:ME.grp||""};
   return'<div class="t" style="margin:10px 0 6px">طلب «ممثل كروب»</div>'+(q&&q.status==="rejected"?'<div class="alert">رُفض طلبك السابق. يمكنك إرسال طلب جديد.</div>':'')+'<form class="add" data-f="rep"><input class="full" name="name" placeholder="الاسم الكامل" value="'+esc(v.name)+'" required><select name="dept" class="full" required><option value="">اختر قسمك</option>'+deptGroups(v.dept)+'</select><select name="stage" class="full" required><option value="">اختر مرحلتك</option>'+opts(STAGES,v.stage)+'</select><select name="grp" class="full" required><option value="">اختر كروبك</option>'+opts(groupsOf(v.stage),v.grp)+'</select><button class="go full">إرسال الطلب</button></form>';
 }
@@ -336,13 +336,14 @@ function previewBar(){
   else if(S.view==="head")h+='<div class="m" style="margin-top:8px">رئيس القسم / العميد: يعدّل الجدول، وينشر تبليغات لأي قسم ومرحلة، ويرى كل التبليغات (من الممثلين والأساتذة) مع عدد المشاهدات، ولا يعدّل الامتحانات.</div>';
   else if(S.view==="rep")h+='<div class="m" style="margin-top:8px">ممثل الكروب: يرى جدول كروبه فقط، وينشر تبليغات لكروبه ويحذف تبليغاته هو، ولا يعدّل الجدول ولا الامتحانات.</div>';
   else h+='<div class="m" style="margin-top:8px">الطالب: مشاهدة فقط، بلا أي زر تعديل أو حذف.</div>';
-  return h+'</div>'+(S.view==="dev"?repPanel():"");
+  return h+'</div>'+(S.view==="dev"||S.view==="head"?repPanel():"");
 }
 function repPanel(){
   var pend=(S.reqs||[]).filter(function(r){return r.status==="pending"}),reps=S.reps||[];
-  function line(r,btns){return'<div class="row" style="padding:8px 0;border-top:1px solid var(--bd);align-items:center"><div><div class="t" style="font-size:15px">'+esc(r.name||"")+'</div><div class="m">كروب '+esc(r.grp||"")+' · المرحلة '+esc(r.stage||"")+(r.dept?' · '+esc(r.dept):'')+(r.email?'<br>'+esc(r.email):'')+'</div></div><div style="white-space:nowrap">'+btns+'</div></div>'}
-  var h='<div class="card"><div class="t">👥 ممثلو الكروبات</div><div class="m" style="margin:6px 0 2px">طلبات بانتظار الموافقة ('+pend.length+')</div>';
+  function line(r,btns){return'<div class="row" style="padding:8px 0;border-top:1px solid var(--bd);align-items:center"><div><div class="t" style="font-size:15px">'+esc(r.name||"")+'</div><div class="m">'+(r.status==="pending"?'<b style="color:'+(r.devOk?'#16a34a':'#b45309')+'">'+(r.devOk?'✔':'⏳')+' المطوّر</b> · <b style="color:'+(r.headOk?'#16a34a':'#b45309')+'">'+(r.headOk?'✔':'⏳')+' العميد/رئيس القسم</b><br>':'')+'كروب '+esc(r.grp||"")+' · المرحلة '+esc(r.stage||"")+(r.dept?' · '+esc(r.dept):'')+(r.email?'<br>'+esc(r.email):'')+'</div></div><div style="white-space:nowrap">'+btns+'</div></div>'}
+  var h='<div class="card"><div class="t">👥 ممثلو الكروبات</div><div class="m" style="margin:6px 0 2px">طلبات بانتظار موافقة المطوّر والعميد/رئيس القسم معاً ('+pend.length+')</div>';
   h+=pend.length?pend.map(function(r){return line(r,'<button class="x" data-ap="'+r.id+'" aria-label="قبول">✅</button><button class="x" data-rj="'+r.id+'" aria-label="رفض">❌</button>')}).join(""):'<div class="m">لا توجد طلبات جديدة.</div>';
+  if(REAL!=="dev")return h+'</div>';
   h+='<div class="m" style="margin:12px 0 2px">الممثلون الحاليون ('+reps.length+')</div>';
   h+=reps.length?reps.map(function(r){return line(r,delBtn("rep",r.id))}).join(""):'<div class="m">لا يوجد ممثلون.</div>';
   return h+'</div>';
@@ -437,7 +438,7 @@ $("view").onclick=function(e){var gt=e.target.closest&&e.target.closest("[data-g
   else if(d.d)twoTap(d.d+d.id,function(){del(d.d,d.id)});
   else if(d.pd){twoTap("pd"+d.pd,function(){if(db)db.collection("notes").doc(d.pd).delete().then(function(){toast("حُذف التبليغ نهائياً")}).catch(fail)})}
   else if(d.lo){twoTap("lo",function(){S.login=false;auth.signOut()})}
-  else if(d.ap){var q=S.reqs.filter(function(r){return r.id===d.ap})[0];if(q&&db){var b=db.batch();b.set(db.collection("admins").doc(q.id),{role:"rep",name:q.name,dept:q.dept,stage:q.stage,grp:q.grp,email:q.email||""});b.delete(db.collection("repRequests").doc(q.id));b.commit().then(function(){toast("تمت الموافقة على الممثل")}).catch(fail)}}
+  else if(d.ap){var q=S.reqs.filter(function(r){return r.id===d.ap})[0];if(q&&db){var mine=REAL==="dev"?"devOk":"headOk",other=REAL==="dev"?q.headOk:q.devOk;if(other){var b=db.batch();b.set(db.collection("admins").doc(q.id),{role:"rep",name:q.name,dept:q.dept,stage:q.stage,grp:q.grp,email:q.email||""});b.delete(db.collection("repRequests").doc(q.id));b.commit().then(function(){toast("اكتملت الموافقتان — أصبح ممثلاً")}).catch(fail)}else{var u={};u[mine]=true;db.collection("repRequests").doc(q.id).update(u).then(function(){toast("تمت موافقتك، بانتظار الطرف الآخر")}).catch(fail)}}}
   else if(d.rj){if(db)db.collection("repRequests").doc(d.rj).update({status:"rejected"}).then(function(){toast("تم رفض الطلب")}).catch(fail)}
   else if(d.e){S.edit={col:d.e,id:d.id};render();window.scrollTo(0,0)}
   else if(d.cancel){S.edit=null;render()}
@@ -457,7 +458,7 @@ $("view").onsubmit=function(e){
   if(col==="login"){auth.signInWithEmailAndPassword(o.email,o.pass).catch(function(e){toast(authMsg(e))});return}
   if(S.edit&&S.edit.col===col){var k=col==="notes"?"from":"by",old=S[col].filter(function(x){return x.id===S.edit.id})[0]||{};if(MYNAME&&!old[k])o[k]=MYNAME;save(col,S.edit.id,o);return}
   if(col==="rep"){var cu=auth&&auth.currentUser;if(!cu)return;if(!o.name||!o.dept||!o.stage||!o.grp){toast("أكمل كل الحقول");return}
-    db.collection("repRequests").doc(cu.uid).set({name:o.name,dept:o.dept,stage:o.stage,grp:o.grp,email:cu.email||"",status:"pending",ts:Date.now()}).then(function(){S.rr=null;toast("أُرسل طلبك إلى المطوّر")}).catch(fail);return}
+    db.collection("repRequests").doc(cu.uid).set({name:o.name,dept:o.dept,stage:o.stage,grp:o.grp,email:cu.email||"",status:"pending",ts:Date.now()}).then(function(){S.rr=null;toast("أُرسل طلبك للمطوّر والعميد")}).catch(fail);return}
   if(col==="notes"){o.ts=Date.now();if(MYUID)o.uid=MYUID}
   if(col==="notes"&&S.view==="rep"){o.stage=REPINFO.stage||ME.stage||"";o.grp=o.target==="stage"?"":(REPINFO.grp||ME.grp||"");delete o.target;o.dept=REPINFO.dept||ME.dept||"";o.from=repLabel()}
   else if((col==="notes"||col==="exams")&&MYNAME)o[col==="notes"?"from":"by"]=MYNAME;
