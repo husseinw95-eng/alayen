@@ -121,14 +121,14 @@ function notify(t,b){try{if(!("Notification" in window)||Notification.permission
 function checkNew(c){
   if(REAL==="dev"||REAL==="prof"||!S.ready)return;
   var ids=S[c].map(function(x){return x.id}),old=seenGet(c);
-  if(old!==null){S[c].filter(match).filter(function(x){return old.indexOf(x.id)<0}).forEach(function(x){
+  if(old!==null){S[c].filter(match).filter(function(x){return !x.deleted&&old.indexOf(x.id)<0}).forEach(function(x){
     if(c==="notes")notify("📢 تبليغ جديد: "+x.title,x.body||"");
     else notify("📝 امتحان جديد: "+x.course,(x.kind?x.kind+" · ":"")+x.date+" "+(x.time||"")+(x.room?" · قاعة "+x.room:""))})}
   seenSet(c,ids);
 }
 function readSet(){try{return JSON.parse(localStorage.getItem("readNotes")||"[]")}catch(e){return[]}}
 function saveRead(a){try{localStorage.setItem("readNotes",JSON.stringify(a))}catch(e){}}
-function unread(){var r=readSet();return S.notes.filter(match).filter(function(n){return r.indexOf(n.id)<0}).length}
+function unread(){var r=readSet();return S.notes.filter(match).filter(function(n){return !n.deleted&&r.indexOf(n.id)<0}).length}
 
 var SEED={courses:[],exams:[],notes:[]};
 try{SEED=JSON.parse($("data").textContent)}catch(e){}
@@ -139,10 +139,11 @@ function twoTap(k,fn){if(S.pend===k){S.pend=null;clearTimeout(PT);fn();render();
 function delBtn(c,id){return S.pend===c+id?'<button class="x cf" data-d="'+c+'" data-id="'+id+'">تأكيد الحذف؟</button>':'<button class="x" data-d="'+c+'" data-id="'+id+'" aria-label="حذف">🗑</button>'}
 function repName(){return"ممثل كروب "+((REPINFO&&REPINFO.grp)||ME.grp||"")}
 function repLabel(){return repName()+(REPINFO&&REPINFO.name?" · "+REPINFO.name:"")}
+function staffView(){return S.view==="dev"||S.view==="prof"||S.view==="head"}
 function setRole(r){S.ready=true;REAL=r;S.view=r;S.role=(r==="student"||r==="rep")?"student":"prof";if(S.role==="student")S.edit=null;render()}
 function fail(){toast("تعذّر الحفظ: ليست لديك صلاحية أو لا يوجد اتصال.")}
 function add(col,o){if(db)db.collection(col).add(o).catch(fail)}
-function del(col,id){if(db)db.collection(col==="rep"?"admins":col).doc(id).delete().catch(fail)}
+function del(col,id){if(!db)return;if(col==="notes"){db.collection("notes").doc(id).update({deleted:true,deletedBy:(S.view==="rep"?repLabel():MYNAME)||"",deletedAt:Date.now()}).catch(fail);return}db.collection(col==="rep"?"admins":col).doc(id).delete().catch(fail)}
 function save(col,id,o){if(db)db.collection(col).doc(id).update(o).then(function(){S.edit=null;render()}).catch(fail)}
 function seedAll(){
   if(!db)return;
@@ -161,7 +162,7 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
     UNSUBS.forEach(function(f){try{f()}catch(e){}});UNSUBS=[];S.myReq=null;S.reqs=[];S.reps=[];REPINFO={};MYUID=u?u.uid:"";
     if(!u){MYNAME="";setRole("student");return}
     db.collection("admins").doc(u.uid).get().then(function(d){
-      var x=d.exists?d.data():null,r=x?(x.role==="dev"?"dev":x.role==="rep"?"rep":"prof"):"student";
+      var x=d.exists?d.data():null,r=x?(x.role==="dev"?"dev":x.role==="rep"?"rep":x.role==="head"?"head":"prof"):"student";
       S.login=false;MYNAME=x&&x.name?String(x.name):"";
       if(r==="rep"){REPINFO={stage:x.stage||"",grp:x.grp||"",dept:x.dept||"",name:x.name||""};MYNAME=REPINFO.name||repName();saveMe({fac:facOf(REPINFO.dept),dept:REPINFO.dept,stage:REPINFO.stage,grp:REPINFO.grp})}
       if(r==="dev"){
@@ -180,7 +181,7 @@ function repForm(){
   return'<div class="t" style="margin:10px 0 6px">طلب «ممثل كروب»</div>'+(q&&q.status==="rejected"?'<div class="alert">رُفض طلبك السابق. يمكنك إرسال طلب جديد.</div>':'')+'<form class="add" data-f="rep"><input class="full" name="name" placeholder="الاسم الكامل" value="'+esc(v.name)+'" required><select name="dept" class="full" required><option value="">اختر قسمك</option>'+deptGroups(v.dept)+'</select><select name="stage" class="full" required><option value="">اختر مرحلتك</option>'+opts(STAGES,v.stage)+'</select><select name="grp" class="full" required><option value="">اختر كروبك</option>'+opts(groupsOf(v.stage),v.grp)+'</select><button class="go full">إرسال الطلب</button></form>';
 }
 function acctCard(cu){
-  var lab={dev:"مطوّر",prof:"أستاذ",rep:"ممثل كروب",student:"حساب بدون صلاحيات"}[REAL]||"";
+  var lab={dev:"مطوّر",prof:"أستاذ",head:"رئيس قسم / عميد",rep:"ممثل كروب",student:"حساب بدون صلاحيات"}[REAL]||"";
   return'<div class="card"><div class="t">'+esc(MYNAME||cu.email||"")+'</div><div class="m">'+esc(cu.email||"")+' · '+lab+'</div>'+(REAL==="student"?repForm():"")+'<button class="go full" data-lo="1" style="margin-top:10px;background:'+(S.pend==="lo"?"#ef4444":"var(--mu)")+'">'+(S.pend==="lo"?"تأكيد تسجيل الخروج؟":"تسجيل الخروج")+'</button></div>';
 }
 function loginCard(){
@@ -251,7 +252,7 @@ function filterBar(){
   return'<div class="fl"><select id="fd"><option value="">كل الأقسام</option>'+deptGroups(FL.dept)+'</select><select id="fs"><option value="">كل المراحل</option>'+opts(STAGES,FL.stage)+'</select><select id="fg"><option value="">كل الشعب</option>'+opts(groups(),FL.grp)+'</select></div>'+(FL.stage?"":'<div class="hint">اختر مرحلتك وشعبتك من القوائم أعلاه لعرض جدولك فقط.</div>')+'<datalist id="depts">'+ds.map(function(d){return'<option value="'+esc(d)+'">'}).join("")+'</datalist>';
 }
 function tg(x){var st=S.role==="student";return(x.grp?'<span class="tg">'+esc(x.grp)+'</span>':"")+(x.dept&&!st?'<span class="tg">'+esc(x.dept)+'</span>':"")+(x.stage&&!st?'<span class="tg">المرحلة '+esc(x.stage)+'</span>':"")}
-function can(col){var v=S.view;return v==="dev"||(v==="prof"&&col!=="courses")||(v==="rep"&&col==="notes")}
+function can(col){var v=S.view;return v==="dev"||(v==="prof"&&col!=="courses")||(v==="head"&&col!=="exams")||(v==="rep"&&col==="notes")}
 function acts(c,id){
   if(!can(c))return"";
   if(S.view==="rep"){var r=S[c].filter(function(x){return x.id===id})[0]||{};return r.uid&&r.uid===MYUID?delBtn(c,id):""}
@@ -307,25 +308,32 @@ function examsView(){
   });
   return h;
 }
+function countViews(){
+  if(!db||!(REAL==="student"||REAL==="rep"))return;
+  var r=readSet();
+  S.notes.filter(match).filter(function(n){return !n.deleted&&r.indexOf(n.id)<0&&n.uid!==MYUID}).forEach(function(n){db.collection("notes").doc(n.id).update({views:firebase.firestore.FieldValue.increment(1)}).catch(function(){})});
+}
 function notesView(){
-  var h=can("notes")?formHtml("notes"):"",r=readSet();
+  var h=can("notes")?formHtml("notes"):"",r=readSet(),st=staffView();
   var all=S.notes.filter(match).sort(function(a,b){return(b.ts||0)-(a.ts||0)}),lim=Date.now()-14*864e5;
-  var cur=all.filter(function(n){return(n.ts||0)>=lim}),old=all.filter(function(n){return(n.ts||0)<lim});
+  if(!st)all=all.filter(function(n){return !n.deleted});
+  var cur=all.filter(function(n){return !n.deleted&&(n.ts||0)>=lim}),old=all.filter(function(n){return n.deleted||(n.ts||0)<lim});
   h+=histTabs("notes",cur.length,old.length);
   var l=S.hist.notes?old:cur;
   if(!l.length)return h+'<div class="empty">'+(S.hist.notes?"لا يوجد سجل تبليغات سابقة.":"لا توجد تبليغات حديثة.")+'</div>';
   l.forEach(function(n){
-    var isNew=S.role==="student"&&r.indexOf(n.id)<0;
-    h+='<div class="card'+(isNew?" new":"")+'"><div class="row"><div><div class="t">'+(isNew?"🔵 ":"")+esc(n.title)+tg(n)+'</div><div class="m">'+esc(n.from||"")+(n.ts?" · "+new Date(n.ts).toLocaleDateString("ar",{day:"numeric",month:"short"}):"")+'</div></div><div>'+acts("notes",n.id)+'</div></div><div style="margin-top:6px;white-space:pre-wrap">'+esc(n.body)+'</div></div>';
+    var isNew=S.role==="student"&&!n.deleted&&r.indexOf(n.id)<0,sv=st||(S.view==="rep"&&n.uid&&n.uid===MYUID);
+    h+='<div class="card'+(isNew?" new":"")+'"'+(n.deleted?' style="opacity:.62"':'')+'><div class="row"><div><div class="t">'+(isNew?"🔵 ":"")+(n.deleted?"🗑 ":"")+esc(n.title)+tg(n)+(n.deleted?'<span class="tg" style="background:#fee2e2;color:#b91c1c">محذوف</span>':'')+'</div><div class="m">'+esc(n.from||"")+(n.ts?" · "+new Date(n.ts).toLocaleDateString("ar",{day:"numeric",month:"short"}):"")+(sv?" · 👁 "+(n.views||0):"")+(n.deleted&&n.deletedBy?" · حذفه: "+esc(n.deletedBy):"")+'</div></div><div>'+(n.deleted?"":acts("notes",n.id))+'</div></div><div style="margin-top:6px;white-space:pre-wrap">'+esc(n.body)+'</div></div>';
   });
   return h;
 }
 function previewBar(){
   if(REAL!=="dev")return"";
-  var V=[["dev","المطوّر"],["prof","الأستاذ"],["rep","الممثل"],["student","الطالب"]];
+  var V=[["dev","المطوّر"],["head","الرئيس"],["prof","الأستاذ"],["rep","الممثل"],["student","الطالب"]];
   var h='<div class="card"><div class="m" style="margin-bottom:6px">👁 معاينة التطبيق (تظهر لك أنت فقط كمالك)</div><div class="seg">'+V.map(function(v){return'<button data-v="'+v[0]+'"'+(S.view===v[0]?' class="on"':"")+'>'+v[1]+'</button>'}).join("")+'</div>';
   if(S.view==="dev")h+='<div class="m" style="margin-top:8px">المطوّر: يحرّر المحتوى ويدير الصلاحيات. المواد: '+S.courses.length+' · الامتحانات: '+S.exams.length+' · التبليغات: '+S.notes.length+'<br>لإضافة أستاذ: أنشئ حسابه في Firebase Authentication ثم أضف مستنداً في مجموعة admins باسم UID الخاص به وفيه الحقل role بقيمة prof.<br><button class="go" data-seed="1" style="margin-top:8px">'+(S.pend==="seed"?"تأكيد الاستيراد؟":"استيراد البيانات الأولية (مرة واحدة)")+'</button></div>';
   else if(S.view==="prof")h+='<div class="m" style="margin-top:8px">الأستاذ: يضيف ويعدّل ويحذف الامتحانات والتبليغات فقط، ولا يعدّل الجدول ولا يدير الصلاحيات.</div>';
+  else if(S.view==="head")h+='<div class="m" style="margin-top:8px">رئيس القسم / العميد: يعدّل الجدول، وينشر تبليغات لأي قسم ومرحلة، ويرى كل التبليغات (من الممثلين والأساتذة) مع عدد المشاهدات، ولا يعدّل الامتحانات.</div>';
   else if(S.view==="rep")h+='<div class="m" style="margin-top:8px">ممثل الكروب: يرى جدول كروبه فقط، وينشر تبليغات لكروبه ويحذف تبليغاته هو، ولا يعدّل الجدول ولا الامتحانات.</div>';
   else h+='<div class="m" style="margin-top:8px">الطالب: مشاهدة فقط، بلا أي زر تعديل أو حذف.</div>';
   return h+'</div>'+(S.view==="dev"?repPanel():"");
@@ -380,7 +388,7 @@ function homeTiles(){
   var up=S.exams.filter(match).filter(function(e){return daysLeft(e)>=0}).sort(function(a,b){return(a.date+a.time)>(b.date+b.time)?1:-1});
   var ex="لا توجد امتحانات";
   if(up.length){var d=daysLeft(up[0]);ex="التالي: "+(d===0?"اليوم":d===1?"غدًا":"بعد "+d+" أيام")}
-  var u=unread(),nt=S.notes.filter(match).length;
+  var u=unread(),nt=S.notes.filter(match).filter(function(n){return !n.deleted}).length;
   var info={sched:cs.length+" محاضرة",today:td?td+" محاضرات اليوم":"لا توجد اليوم",exams:ex,notes:S.role==="student"?(u?u+" جديد":"لا جديد"):nt+" تبليغ"};
   return'<div class="grid">'+["sched","today","exams","notes"].map(function(k){
     return'<button class="tile" data-go="'+k+'" style="background:'+SEC[k].c+'"><span class="ti">'+IC[k]+'</span><span><span class="tl">'+SEC[k].t+'</span><span class="ts">'+info[k]+'</span></span>'+(k==="notes"&&S.role==="student"&&u?'<b class="tb">'+u+'</b>':"")+'</button>';
@@ -403,6 +411,7 @@ function render(){
   if(S.role==="student"&&(!ME.stage||S.regOpen)){$("view").innerHTML=loginCard()+previewBar()+regView();return}
   var edAlert=S.role==="prof"?'<div class="alert" style="background:var(--pr2);color:var(--pr)">وضع التحرير: '+(S.view==="dev"?"يمكنك تعديل الجدول والامتحانات والتبليغات":"يمكنك إضافة الامتحانات والتبليغات وتعديلها وحذفها (الجدول للعرض فقط)")+'</div>':"";
   var h=loginCard();
+  if(S.view==="head")edAlert='<div class="alert" style="background:var(--pr2);color:var(--pr)">رئيس القسم / العميد: يمكنك تعديل الجدول ونشر تبليغات لأي قسم ورؤية كل التبليغات.</div>';
   if(S.view==="rep")edAlert='<div class="alert" style="background:var(--pr2);color:var(--pr)">ممثل كروب: يمكنك نشر تبليغات لكروبك وحذف تبليغاتك.</div>';
   if(S.tab==="home")h+=previewBar()+edAlert+(S.role==="student"?meBar()+installCard()+notifCard()+nearBanner():"")+homeTiles();
   else h+=secHead(S.tab)+edAlert+(S.role==="student"?"":filterBar())+(S.tab==="sched"?schedView():S.tab==="today"?todayView():S.tab==="exams"?examsView():notesView());
@@ -416,7 +425,7 @@ function go(t){
   var from=S.tab;S.tab=t;S.edit=null;S.addOpen=false;
   try{if(from==="home")history.pushState({t:t},"");else history.replaceState({t:t},"")}catch(e){}
   render();window.scrollTo(0,0);
-  if(t==="notes"&&S.role==="student")setTimeout(function(){if(S.tab==="notes"){saveRead(S.notes.map(function(n){return n.id}));render()}},1500);
+  if(t==="notes"&&S.role==="student")setTimeout(function(){if(S.tab==="notes"){countViews();saveRead(S.notes.map(function(n){return n.id}));render()}},1500);
 }
 addEventListener("popstate",function(){S.tab="home";S.edit=null;render()});
 $("bell").onclick=function(){go("notes")};
