@@ -129,7 +129,7 @@ function unread(){var r=readSet();return S.notes.filter(match).filter(function(n
 
 var SEED={courses:[],exams:[],notes:[]};
 try{SEED=JSON.parse($("data").textContent)}catch(e){}
-var APP_VERSION=1,REAL="student",db=null,auth=null;
+var APP_VERSION=1,REAL="student",MYNAME="",db=null,auth=null;
 function setRole(r){S.ready=true;REAL=r;S.view=r;S.role=r==="student"?"student":"prof";if(r==="student")S.edit=null;render()}
 function fail(){alert("تعذّر الحفظ: ليست لديك صلاحية أو لا يوجد اتصال.")}
 function add(col,o){if(db)db.collection(col).add(o).catch(fail)}
@@ -150,7 +150,7 @@ if(!window.firebase||!CF||CF.apiKey==="YOUR_API_KEY"){
   db.collection("meta").doc("app").onSnapshot(function(d){var x=d.data()||{};S.upd=(x.latest>APP_VERSION)?x:null;render()},function(){});
   auth.onAuthStateChanged(function(u){
     if(!u){setRole("student");return}
-    db.collection("admins").doc(u.uid).get().then(function(d){S.login=false;setRole(d.exists?(d.data().role==="dev"?"dev":"prof"):"student")}).catch(function(){setRole("student")});
+    db.collection("admins").doc(u.uid).get().then(function(d){S.login=false;MYNAME=d.exists&&d.data().name?String(d.data().name):"";setRole(d.exists?(d.data().role==="dev"?"dev":"prof"):"student")}).catch(function(){setRole("student")});
   });
 }
 function loginCard(){
@@ -182,8 +182,8 @@ function fmtDate(s){try{return new Date(s+"T00:00").toLocaleDateString("ar",{wee
 var STAGES=["الأولى","الثانية","الثالثة","الرابعة","الخامسة"];
 var F={
 courses:[["name","اسم المادة","t",1,1],["day","","s",0,0,[6,0,1,2,3,4].map(function(i){return[i,DAYS[i]]})],["room","القاعة","t"],["start","البداية","time",1],["end","النهاية","time",1],["prof","اسم الأستاذ","t",0,1],["kind","","s",0,0,[["","النوع"],["نظري","نظري"],["عملي","عملي"]]],["grp","الشعبة / الكروب (مثل A أو A1)","t"]],
-exams:[["course","اسم المادة","t",1,1],["date","تاريخ الامتحان","date",1],["time","وقت الامتحان","time",1],["room","القاعة","t"],["kind","النوع (نصفي / نهائي)","t"]],
-notes:[["title","العنوان","t",1,1],["body","نص التبليغ","a",1,1],["from","اسم الأستاذ / المادة","t",0,1]]};
+exams:[["course","اسم المادة","t",1,1],["date","تاريخ الامتحان","date",1],["time","وقت الامتحان","time",1],["room","القاعة","t"],["kind","","s",0,0,[["","نوع الامتحان"],["كوز","كوز"],["مد","مد"],["فاينل","فاينل"]]]],
+notes:[["title","العنوان","t",1,1],["body","نص التبليغ","a",1,1]]};
 var TT={courses:"المادة",exams:"موعد الامتحان",notes:"التبليغ"};
 var FL={dept:"",stage:""};
 try{FL=JSON.parse(localStorage.getItem("fl"))||FL}catch(e){}
@@ -267,7 +267,7 @@ function examsView(){
   if(!l.length)return h+'<div class="empty">'+(S.hist.exams?"لا يوجد سجل امتحانات سابقة.":"لا توجد امتحانات قادمة.")+'</div>';
   l.forEach(function(e){
     var d=daysLeft(e),tag=d<0?"انتهى":d===0?"اليوم":d===1?"غدًا":"بعد "+d+" أيام";
-    h+='<div class="card"><div class="row"><div><div class="t">'+esc(e.course)+(e.kind?" · "+esc(e.kind):"")+tg(e)+'</div><div class="m">'+fmtDate(e.date)+" · "+esc(e.time)+(e.room?" · قاعة "+esc(e.room):"")+'</div></div><div style="text-align:left"><span class="pill"'+(d>=0&&d<=3?' style="background:var(--wb);color:var(--wa)"':"")+'>'+tag+'</span>'+acts("exams",e.id)+'</div></div></div>';
+    h+='<div class="card"><div class="row"><div><div class="t">'+esc(e.course)+(e.kind?" · "+esc(e.kind):"")+tg(e)+'</div><div class="m">'+fmtDate(e.date)+" · "+esc(e.time)+(e.room?" · قاعة "+esc(e.room):"")+(e.by?" · "+esc(e.by):"")+'</div></div><div style="text-align:left"><span class="pill"'+(d>=0&&d<=3?' style="background:var(--wb);color:var(--wa)"':"")+'>'+tag+'</span>'+acts("exams",e.id)+'</div></div></div>';
   });
   return h;
 }
@@ -389,6 +389,7 @@ $("view").onsubmit=function(e){
   if(col==="login"){auth.signInWithEmailAndPassword(o.email,o.pass).catch(function(e){alert(authMsg(e))});return}
   if(S.edit&&S.edit.col===col){save(col,S.edit.id,o);return}
   if(col==="notes")o.ts=Date.now();
+  if((col==="notes"||col==="exams")&&MYNAME)o[col==="notes"?"from":"by"]=MYNAME;
   if(col==="courses")S.addOpen=false;
   add(col,o);
 };
