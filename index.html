@@ -119,7 +119,7 @@ function seenGet(c){try{var v=localStorage.getItem("seen_"+c);return v===null?nu
 function seenSet(c,a){try{localStorage.setItem("seen_"+c,JSON.stringify(a))}catch(e){}}
 function notify(t,b){try{if(!("Notification" in window)||Notification.permission!=="granted")return;navigator.serviceWorker.getRegistration().then(function(r){var o={body:b,icon:"icon-192.png",badge:"icon-192.png",dir:"rtl",lang:"ar"};if(r)r.showNotification(t,o);else new Notification(t,o)})}catch(e){}}
 function checkNew(c){
-  if(REAL==="dev"||REAL==="prof"||!S.ready)return;
+  if(REAL==="dev"||REAL==="prof"||REAL==="head"||!S.ready)return;
   var ids=S[c].map(function(x){return x.id}),old=seenGet(c);
   if(old!==null){S[c].filter(match).filter(function(x){return !x.deleted&&old.indexOf(x.id)<0}).forEach(function(x){
     if(c==="notes")notify("📢 تبليغ جديد: "+x.title,x.body||"");
