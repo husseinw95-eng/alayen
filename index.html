@@ -256,10 +256,15 @@ function schedView(){
   var l=cs.filter(function(c){return +c.day===+S.selDay}).sort(function(a,b){return a.start>b.start?1:-1});
   return h+l.map(function(c){return courseCard(c,+S.selDay===today)}).join("");
 }
+S.hist={};
+function histTabs(k,nc,nh){return'<div class="chips"><button class="chip'+(S.hist[k]?"":" on")+'" data-hist="'+k+':0">الحالية<small>'+nc+'</small></button><button class="chip'+(S.hist[k]?" on":"")+'" style="--c:#7c3aed" data-hist="'+k+':1">السجل<small>'+nh+'</small></button></div>'}
 function examsView(){
   var h=can("exams")?formHtml("exams"):"";
-  var l=S.exams.filter(match).sort(function(a,b){return(a.date+a.time)>(b.date+b.time)?1:-1});
-  if(!l.length)return h+'<div class="empty">لا توجد امتحانات لعرضها.</div>';
+  var all=S.exams.filter(match).sort(function(a,b){return(a.date+a.time)>(b.date+b.time)?1:-1});
+  var cur=all.filter(function(e){return daysLeft(e)>=0}),old=all.filter(function(e){return daysLeft(e)<0}).reverse();
+  h+=histTabs("exams",cur.length,old.length);
+  var l=S.hist.exams?old:cur;
+  if(!l.length)return h+'<div class="empty">'+(S.hist.exams?"لا يوجد سجل امتحانات سابقة.":"لا توجد امتحانات قادمة.")+'</div>';
   l.forEach(function(e){
     var d=daysLeft(e),tag=d<0?"انتهى":d===0?"اليوم":d===1?"غدًا":"بعد "+d+" أيام";
     h+='<div class="card"><div class="row"><div><div class="t">'+esc(e.course)+(e.kind?" · "+esc(e.kind):"")+tg(e)+'</div><div class="m">'+fmtDate(e.date)+" · "+esc(e.time)+(e.room?" · قاعة "+esc(e.room):"")+'</div></div><div style="text-align:left"><span class="pill"'+(d>=0&&d<=3?' style="background:var(--wb);color:var(--wa)"':"")+'>'+tag+'</span>'+acts("exams",e.id)+'</div></div></div>';
@@ -268,8 +273,11 @@ function examsView(){
 }
 function notesView(){
   var h=can("notes")?formHtml("notes"):"",r=readSet();
-  var l=S.notes.filter(match).sort(function(a,b){return(b.ts||0)-(a.ts||0)});
-  if(!l.length)return h+'<div class="empty">لا توجد تبليغات لعرضها.</div>';
+  var all=S.notes.filter(match).sort(function(a,b){return(b.ts||0)-(a.ts||0)}),lim=Date.now()-14*864e5;
+  var cur=all.filter(function(n){return(n.ts||0)>=lim}),old=all.filter(function(n){return(n.ts||0)<lim});
+  h+=histTabs("notes",cur.length,old.length);
+  var l=S.hist.notes?old:cur;
+  if(!l.length)return h+'<div class="empty">'+(S.hist.notes?"لا يوجد سجل تبليغات سابقة.":"لا توجد تبليغات حديثة.")+'</div>';
   l.forEach(function(n){
     var isNew=S.role==="student"&&r.indexOf(n.id)<0;
     h+='<div class="card'+(isNew?" new":"")+'"><div class="row"><div><div class="t">'+(isNew?"🔵 ":"")+esc(n.title)+tg(n)+'</div><div class="m">'+esc(n.from||"")+(n.ts?" · "+new Date(n.ts).toLocaleDateString("ar",{day:"numeric",month:"short"}):"")+'</div></div><div>'+acts("notes",n.id)+'</div></div><div style="margin-top:6px;white-space:pre-wrap">'+esc(n.body)+'</div></div>';
@@ -359,6 +367,7 @@ function go(t){
 addEventListener("popstate",function(){S.tab="home";S.edit=null;render()});
 $("bell").onclick=function(){go("notes")};
 $("view").onclick=function(e){var gt=e.target.closest&&e.target.closest("[data-go]");if(gt){go(gt.dataset.go);return}
+  var hb=e.target.closest&&e.target.closest("[data-hist]");if(hb){var hp=hb.dataset.hist.split(":");S.hist[hp[0]]=hp[1]==="1";render();return}
   var ch=e.target.closest&&e.target.closest("[data-day]");if(ch){S.selDay=+ch.dataset.day;render();return}
   var d=e.target.dataset||{};
   if(d.v){S.view=d.v;S.role=d.v==="student"?"student":"prof";S.edit=null;render()}
