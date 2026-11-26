@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function me() { return get(/databases/$(db)/documents/admins/$(request.auth.uid)).data; }
+    function isAdmin() { return request.auth != null && exists(/databases/$(db)/documents/admins/$(request.auth.uid)); }
+    function isDev() { return isAdmin() && me().role == 'dev'; }
+    // أستاذ أو مطوّر: الامتحانات
+    function isStaff() { return isAdmin() && (me().role == 'dev' || me().role == 'prof'); }
+    // مطوّر أو رئيس/عميد: الجدول
+    function canCourses() { return isAdmin() && (me().role == 'dev' || me().role == 'head'); }
+    // مطوّر أو أستاذ أو رئيس/عميد: التبليغات
+    function canNotes() { return isAdmin() && (me().role == 'dev' || me().role == 'prof' || me().role == 'head'); }
+    function isHead() { return isAdmin() && me().role == 'head'; }
+    function isRep() { return isAdmin() && me().role == 'rep'; }
+    // أي زائر يزيد عدّاد المشاهدات بمقدار 1 فقط
+    function viewBump() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+        && request.resource.data.views == resource.data.get('views', 0) + 1;
+    }
+
+    match /courses/{id} { allow read: if true; allow write: if canCourses(); }
+
+    match /exams/{id} { allow read: if true; allow write: if isStaff(); }
+
+    // التبليغات تبقى محفوظة: الحذف علامة deleted، والحذف النهائي للمطوّر فقط
+    match /notes/{id} {
+      allow read: if true;
+      allow create: if canNotes() || (isRep()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.stage == me().stage
+        && (request.resource.data.grp == me().grp || request.resource.data.grp == ''));
+      allow update: if canNotes()
+        || (isRep() && resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'deletedBy', 'deletedAt']))
+        || viewBump();
+      allow delete: if isDev();
+    }
+
+    match /meta/{id} { allow read: if true; allow write: if isDev(); }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isDev());
+      allow create: if (isDev() || isHead()) && request.resource.data.role == 'rep';
+      allow update: if isDev() && request.resource.data.role == 'rep';
+      allow delete: if isDev() && resource.data.role == 'rep';
+    }
+
+    match /repRequests/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isDev() || isHead());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && !exists(/databases/$(db)/documents/admins/$(uid))
+        && request.resource.data.status == 'pending';
+      allow update: if isDev() || isHead() || (request.auth != null && request.auth.uid == uid && request.resource.data.status == 'pending');
+      allow delete: if isDev() || isHead() || (request.auth != null && request.auth.uid == uid);
+    }
+  }
+}
